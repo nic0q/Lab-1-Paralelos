@@ -11,6 +11,8 @@
 #include <xmmintrin.h> /* SSE __m128 float */
 #include <immintrin.h>
 
+long toBin(short);
+
 // Structure for storing the
 // image data
 typedef struct PGMImage {
@@ -87,23 +89,19 @@ bool openPGM(PGMImage* pgm, const char* filename) {
 
     for (int i = 0; i < pgm->height; i++) {
       pgm->data[i] = malloc(pgm->width * sizeof(short));
-
       // If memory allocation
       // is failed
       if (pgm->data[i] == NULL) {
         fprintf(stderr, "malloc failed\n");
         exit(1);
       }
-
       // Read the gray values and
       // write on allocated memory
       fread(pgm->data[i], sizeof(short), pgm->width, pgmfile);
     }
   }
-
   // Close the file
   fclose(pgmfile);
-
   return true;
 }
 
@@ -150,6 +148,9 @@ int main(int argc, char* argv[]) {
   int option, imageWidth = 0;
   char *inputImage = NULL, *outputImage1 = NULL, *outputImage2 = NULL;
   char buffer[100];
+  short int *salida;
+  salida = malloc(510 * 510 * sizeof(short int*));
+  int indice_r = 0, max_vl = 7, size_r = 8, is[8], js[8], indice = 0, maxe, maxed;
   while ((option = getopt(argc, argv, "i:s:p:N:")) != -1) {
     switch (option) {
       case 'i':  // nombre del archivo de entrada
@@ -176,30 +177,22 @@ int main(int argc, char* argv[]) {
   printf("outputImage2: %s\n", outputImage2);
   printf("imageWidth: %d\n", imageWidth);
   PGMImage* pgm = malloc(sizeof(PGMImage));
-
   FILE* pgmimg;
-  pgmimg = fopen(strcat(outputImage2,".pgm"), "wb");
+  pgmimg = fopen(outputImage2, "w");
   fprintf(pgmimg, "P5\n");
-  fprintf(pgmimg, "%d %d\n", 510, 510);
-  fprintf(pgmimg, "255\n"); 
-
+  fprintf(pgmimg, "%d %d\n", 512, 512);
+  fprintf(pgmimg, "255\n");
   if (openPGM(pgm, inputImage)) {
     printImageDetails(pgm, inputImage);
   }
   __m128i r1, r2, r3, r4, r5, max_px;
-
   short int A[8] __attribute__((aligned(16))) = {-1,-1,-1,-1,-1,-1,-1,-1};
   short int B[8] __attribute__((aligned(16))) = {-1,-1,-1,-1,-1,-1,-1,-1};
   short int C[8] __attribute__((aligned(16))) = {-1,-1,-1,-1,-1,-1,-1,-1};
   short int D[8] __attribute__((aligned(16))) = {-1,-1,-1,-1,-1,-1,-1,-1};
   short int E[8] __attribute__((aligned(16))) = {-1,-1,-1,-1,-1,-1,-1,-1};
-  short int max[8] __attribute__((aligned(16)));
-
-  int indice_r = 0;
-  int max_vl = 7;
-  int size_r = 8;
-  int is[8];
-  int js[8];
+  short int max[8];
+  
   for(int i = 1; i < pgm->height - 1; i++){
     for(int j = 1; j < pgm->width - 1; j++){
       A[indice_r] = *pgm->data[i-1, j];
@@ -207,32 +200,38 @@ int main(int argc, char* argv[]) {
       C[indice_r] = *pgm->data[i, j];
       D[indice_r] = *pgm->data[i, j+1];
       E[indice_r] = *pgm->data[i+1, j];
-      is[indice_r] = i;
-      js[indice_r] = j;
       if(indice_r == max_vl){
         indice_r = 0;
-          // load
-          r1 = _mm_loadu_si128((__m128i*) A);
-          r2 = _mm_loadu_si128((__m128i*) B);
-          r3 = _mm_loadu_si128((__m128i*) C);
-          r4 = _mm_loadu_si128((__m128i*) D);
-          r5 = _mm_loadu_si128((__m128i*) E);
-          memset(A, -1, sizeof(A));
-          memset(B, -1, sizeof(B));
-          memset(C, -1, sizeof(C));
-          memset(D, -1, sizeof(D));
-          memset(E, -1, sizeof(E));
-          max_px = _mm_max_epi16(_mm_max_epi16(_mm_max_epi16(_mm_max_epi16(r1, r2), r3), r4), r5);
-          _mm_store_si128((__m128i*)max, max_px);
-          for(int h = 0; h < 8; h++){
-            fprintf(pgmimg, "%d ", max[h]);
+        r1 = _mm_loadu_si128((__m128i*) A);
+        r2 = _mm_loadu_si128((__m128i*) B);
+        r3 = _mm_loadu_si128((__m128i*) C);
+        r4 = _mm_loadu_si128((__m128i*) D);
+        r5 = _mm_loadu_si128((__m128i*) E);
+        memset(A, -1, sizeof(A));
+        memset(B, -1, sizeof(B));
+        memset(C, -1, sizeof(C));
+        memset(D, -1, sizeof(D));
+        memset(E, -1, sizeof(E));
+        max_px = _mm_max_epi16(_mm_max_epi16(_mm_max_epi16(_mm_max_epi16(r1, r2), r3), r4), r5);
+        _mm_store_si128((__m128i*)max, max_px);
+        for(int h = 0; h < 8; h++){
+          if(indice == 510 * 510){
+            printf("AAAAAA");
+            return 0;
           }
+          salida[indice] = max[h];
+          indice++;
+        }
       }
       else{
-        indice_r+=1;
+        indice_r++;
       }
-
+      maxed = j;
     }
+    maxe = i;
   }
-
+  
+  printf("%d %d", maxe, maxed);
+  fwrite(salida, sizeof(short int),510 * 510, pgmimg);
+  fclose(pgmimg);
 }
