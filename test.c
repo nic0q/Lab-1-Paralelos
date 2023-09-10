@@ -1,9 +1,7 @@
 #include <cpuid.h> /* __get_cpuid_max, __get_cpuid */
 #include <ctype.h>
-#include <immintrin.h>
 #include <mmintrin.h> /* MMX instrinsics __m64 integer type */
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h> /* exit */
 #include <stdlib.h>
@@ -11,11 +9,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <xmmintrin.h> /* SSE __m128 float */
+#include <immintrin.h>
+#include <stdint.h>
 // Structure for storing the
 // image data
 typedef struct PGMImage {
   char pgmType[3];
-  short** data;
+  short **data;
+  short *img;
   unsigned int width;
   unsigned int height;
   unsigned int maxValue;
@@ -79,9 +80,11 @@ bool openPGM(PGMImage* pgm, const char* filename) {
   // Allocating memory to store
   // img info in defined struct
   pgm->data = malloc(pgm->height * sizeof(short*));
+  pgm->img = malloc(pgm->height * pgm->width);
 
   // Storing the pixel info in
   // the struct
+  int arr = 0;
   if (pgm->pgmType[1] == '5') {
     fgetc(pgmfile);
 
@@ -96,6 +99,8 @@ bool openPGM(PGMImage* pgm, const char* filename) {
       // Read the gray values and
       // write on allocated memory
       fread(pgm->data[i], sizeof(short), pgm->width, pgmfile);
+      pgm->img[arr] = *pgm->data[i];
+      arr++;
     }
   }
   // Close the file
@@ -141,95 +146,23 @@ void printImageDetails(PGMImage* pgm, const char* filename) {
   // close file
   fclose(pgmfile);
 }
+
 int main(int argc, char* argv[]) {
-  int option, imageWidth = 0, indice_r = 0, max_vl = 7, size_r = 8, is[8],
-              js[8], indice = 0;
-  char *inputImage = NULL, *outputImage1 = NULL, *outputImage2 = NULL;
-  while ((option = getopt(argc, argv, "i:s:p:N:")) != -1) {
-    switch (option) {
-      case 'i':  // nombre del archivo de entrada
-        inputImage = optarg;
-        break;
-      case 's':  // nombre del archivo de salida
-        outputImage1 = optarg;
-        break;
-      case 'p':  // nombre del archivo de salida
-        outputImage2 = optarg;
-        break;
-      case 'N':  // ancho de la imagen
-        sscanf(optarg, "%d", &imageWidth);
-        break;
-      case '?':
-        exit(0);
-      default:  // En caso que no se haya ingresado alguna flag obligatoria, se
-                // aborta la ejecucion
-        abort();
-    }
+   PGMImage* pgm = malloc(sizeof(PGMImage));
+  if (openPGM(pgm, "bike.pgm")) {
+    printImageDetails(pgm, "bike.pgm");
   }
-  printf("inputImage: %s\n", inputImage);
-  printf("outputImage1: %s\n", outputImage1);
-  printf("outputImage2: %s\n", outputImage2);
-  printf("imageWidth: %d\n", imageWidth);
-  PGMImage* pgm = malloc(sizeof(PGMImage));
-  if (openPGM(pgm, inputImage)) {
-    printImageDetails(pgm, inputImage);
-  }
-  short int salida[510][510];
+
   FILE* pgmimg;
-  pgmimg = fopen(outputImage2, "w");
-  __m128i r1, r2, r3, r4, r5, max_px, ew;
-  short int A[8] __attribute__((aligned(16)));
-  short int B[8] __attribute__((aligned(16)));
-  short int C[8] __attribute__((aligned(16)));
-  short int D[8] __attribute__((aligned(16)));
-  short int E[8] __attribute__((aligned(16)));
-  short int max[8];
-  short int salida2[510 * 510];
-  int cont = 0;
-  int posx = 0, poxy = 0, pixs = 0;
-  for (int i = 1; i < pgm->height - 1; i++) {
-    for (int j = 1; j < pgm->width - 1; j++) {
-      A[indice_r] = pgm->data[i - 1][j];  // arriba
-      B[indice_r] = pgm->data[i][j - 1];  // izquierda
-      C[indice_r] = pgm->data[i][j];      // centro
-      D[indice_r] = pgm->data[i][j+1];  // derecha
-      E[indice_r] = pgm->data[i + 1][j];  // abajo
-      // printf("Pixel %hhu, %hhu, %hhu, %hhu, %hhu,
-      // %hhu",A[indice_r],B[indice_r],C[indice_r],D[indice_r],E[indice_r]);
-      if (indice_r == max_vl) {
-        indice_r = 0;
-        r1 = _mm_loadu_si128((__m128i*)A);
-        r2 = _mm_loadu_si128((__m128i*)B);
-        r3 = _mm_loadu_si128((__m128i*)C);
-        r4 = _mm_loadu_si128((__m128i*)D);
-        r5 = _mm_loadu_si128((__m128i*)E);
-        memset(A, 0, sizeof(A));
-        memset(B, 0, sizeof(B));
-        memset(C, 0, sizeof(C));
-        memset(D, 0, sizeof(D));
-        memset(E, 0, sizeof(E));
-        max_px = _mm_max_epi16(
-            _mm_max_epi16(_mm_max_epi16(_mm_max_epi16(r1, r2), r3), r4), r5);
-        _mm_store_si128((__m128i*)max, max_px);
-        for (int h = 0; h < 8; h++) {
-          if(poxy == 510){
-            poxy = 0;
-            posx++;
-          }
-          salida[posx][poxy] = max[h];
-          poxy++;
-          // salida2[cont] = max[h];
-          // cont++;
-        }
-      } else {
-        indice_r++;
-      }
-    }
+  pgmimg = fopen("outputImage2.pgm", "w");
+
+  // Write the PGM header
+  fprintf(pgmimg, "P5\n%d %d\n%d\n", pgm->width, pgm->height, pgm->maxValue);
+
+  // Write the image data
+  for (int i = 0; i < pgm->height; i++) {
+    fwrite(pgm->data[i], sizeof(short), pgm->width, pgmimg);
   }
-  fprintf(pgmimg, "P5\n%d %d\n%d\n", 510, 510, pgm->maxValue);
-  // fwrite(salida2, sizeof(short int), 510 * 510, pgmimg);
-  for (int o = 0; o < 510; o++) {
-    fwrite(salida[o], sizeof(short int), 510, pgmimg);
-  }
+
   fclose(pgmimg);
 }
