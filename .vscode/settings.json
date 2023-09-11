@@ -13,6 +13,7 @@
     "cmath": "c",
     "*.java": "java",
     "*.html": "html",
-    "limits": "c"
+    "limits": "c",
+    "tmmintrin.h": "c"
   }
 }

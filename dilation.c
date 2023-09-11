@@ -12,16 +12,18 @@
 #include <tmmintrin.h>
 #include <unistd.h>
 #include <xmmintrin.h> /* SSE __m128 float */
-
 #include "image.h"
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+void write_file(char* name,  uint8_t* pixels, int height, int width, int maxValue);
+
 int main(int argc, char* argv[]) {
-  int option, imageWidth = 0, indx = 0, size_r = 16, cont = 0;
+  int option, imageWidth = 0, indx = 0, size_r = 16, cont = 0, indy = 0;
   char *inputImage = NULL, *outputImage1 = NULL, *outputImage2 = NULL;
   uint8_t A[size_r], B[size_r], C[size_r], D[size_r], E[size_r], max[size_r];
   __m128i r1, r2, r3, r4, r5, max_px;
   PGMImage* pgm = malloc(sizeof(PGMImage));
-  FILE* pgmimg;
   while ((option = getopt(argc, argv, "i:s:p:N:")) != -1) {
     switch (option) {
       case 'i':  // nombre del archivo de entrada
@@ -45,9 +47,10 @@ int main(int argc, char* argv[]) {
   printf("inputImage: %s\noutputImage1: %s\noutputImage2: %s\nimageWidth: %d\n",
          inputImage, outputImage1, outputImage2, imageWidth);
   openPGM(pgm, inputImage);
-  pgmimg = fopen(outputImage2, "wb");
   int dim = (pgm->height - 2) * (pgm->width - 2);
-  uint8_t* pxls = (uint8_t*)malloc(dim * sizeof(uint8_t));
+  uint8_t* pixels = (uint8_t*)malloc(dim * sizeof(uint8_t));
+  uint8_t* pixels2 = (uint8_t*)malloc(dim * sizeof(uint8_t));
+  clock_t start = clock();
   for (int i = 1; i < pgm->height - 1; i++) {
     for (int j = 1; j < pgm->width - 1; j++) {
       A[indx] = pgm->data[i - 1][j];  // arriba
@@ -61,16 +64,11 @@ int main(int argc, char* argv[]) {
         r3 = _mm_loadu_si128((__m128i*)C);
         r4 = _mm_loadu_si128((__m128i*)D);
         r5 = _mm_loadu_si128((__m128i*)E);
-        memset(A, 0, sizeof(A));
-        memset(B, 0, sizeof(B));
-        memset(C, 0, sizeof(C));
-        memset(D, 0, sizeof(D));
-        memset(E, 0, sizeof(E));
-        max_px = _mm_max_epi8(
-            _mm_max_epi8(_mm_max_epi8(_mm_max_epi8(r1, r2), r3), r4), r5);
+        max_px = _mm_max_epu8(_mm_max_epu8(_mm_max_epu8(r1, r2), _mm_max_epu8(r3, r4)), r5);
         _mm_store_si128((__m128i*)max, max_px);
         for (int h = 0; h < size_r; h++) {
-          pxls[cont++] = max[h];
+          pixels[cont] = max[h];
+          cont++;
         }
         indx = 0;
       } else {
@@ -78,9 +76,28 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-  fprintf(pgmimg, "P5\n%d %d\n%d\n", pgm->height - 2, pgm->width - 2,
-          pgm->maxValue);
-  size_t elements_written = fwrite(pxls, sizeof(uint8_t), dim, pgmimg);
+  clock_t end = clock();
+  clock_t start1 = clock();
+  for (int i = 1; i < pgm->height - 1; i++) {
+    for (int j = 1; j < pgm->width - 1; j++) {
+      pixels2[indy] = MAX(MAX(MAX(pgm->data[i][j + 1], pgm->data[i + 1][j]),MAX(pgm->data[i - 1][j], pgm->data[i][j - 1])),pgm->data[i][j]);
+      indy++;
+    }
+  }
+  clock_t end1 = clock();
+  double paralelo = ((double) (end - start)) / CLOCKS_PER_SEC;
+  double secuencial = ((double) (end1 - start1)) / CLOCKS_PER_SEC;
+  printf("T.Paralelo: %f\nT.Secuencial: %f\n", paralelo, secuencial);
+  write_file(outputImage2, pixels, pgm->height, pgm->width, pgm->maxValue);
+  // write_file(outputImage2, pixels2, pgm->height, pgm->width, pgm->maxValue);
+}
+
+void write_file(char *archive_name, uint8_t* pixels, int height, int width, int maxValue){
+  FILE* pgmimg;
+  pgmimg = fopen(archive_name, "wb");
+  int dim = (width - 2) * (height - 2);
+  fprintf(pgmimg, "P5\n%d %d\n%d\n", height - 2, width - 2, maxValue);
+  size_t elements_written = fwrite(pixels, sizeof(uint8_t), dim, pgmimg);
   if (elements_written == dim) {
     printf("Se escribieron todos los elementos correctamente.\n");
   } else {
