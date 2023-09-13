@@ -7,8 +7,7 @@
 // Declaración de la estructura de imagen PGM
 typedef struct PGMImage {
   char pgmType[3];
-  uint8_t** data;
-  uint8_t* pixs;
+  uint8_t* pixels;
   unsigned int width;
   unsigned int height;
   unsigned int maxValue;
