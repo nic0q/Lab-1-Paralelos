@@ -14,6 +14,9 @@
     "*.java": "java",
     "*.html": "html",
     "limits": "c",
-    "tmmintrin.h": "c"
+    "tmmintrin.h": "c",
+    "immintrin.h": "c",
+    "smmintrin.h": "c",
+    "stdint.h": "c"
   }
 }
