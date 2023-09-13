@@ -19,7 +19,7 @@
 void write_file(char* name,  uint8_t* pixels, int height, int width, int maxValue);
 
 int main(int argc, char* argv[]) {
-  int option, imageWidth = 0, indx = 0, size_r = 16, cont = 0, indy = 0;
+  int option, imageWidth = 0, size_r = 16, pos = 0, indy = 0;
   char *inputImage = NULL, *secuentialOutputImage = NULL, *parallelOutputImage = NULL;
   uint8_t A[size_r], B[size_r], C[size_r], D[size_r], E[size_r], max[size_r];
   __m128i r1, r2, r3, r4, r5, max_px;
@@ -47,56 +47,61 @@ int main(int argc, char* argv[]) {
   printf("inputImage: %s\nsecuentialOutputImage: %s\nparallelOutputImage: %s\nimageWidth: %d\n",
          inputImage, secuentialOutputImage, parallelOutputImage, imageWidth);
   openPGM(pgm, inputImage);
-  int dim = (pgm->height - 2) * (pgm->width - 2);
-  uint8_t* pixels_s = (uint8_t*)malloc(dim * sizeof(uint8_t));
-  uint8_t* pixels_p = (uint8_t*)malloc(dim * sizeof(uint8_t));
 
-  clock_t start_s = clock();
-  for (int i = 1; i < pgm->height - 1; i++) {
-    for (int j = 1; j < pgm->width - 1; j++) {
-      pixels_s[indy] = MAX(MAX(MAX(pgm->data[i][j + 1], pgm->data[i + 1][j]),MAX(pgm->data[i - 1][j], pgm->data[i][j - 1])),pgm->data[i][j]);
-      indy++;
-    }
-  }
-  clock_t end_s = clock();
-
-  clock_t start_p = clock();
-  for (int i = 1; i < pgm->height - 1; i++) {
-    for (int j = 1; j < pgm->width - 1; j++) {
-      A[indx] = pgm->data[i - 1][j];  // arriba
-      B[indx] = pgm->data[i][j - 1];  // izquierda
-      C[indx] = pgm->data[i][j];      // centro
-      D[indx] = pgm->data[i][j + 1];  // derecha
-      E[indx] = pgm->data[i + 1][j];  // abajo
-      if (indx + 1 == size_r) {
-        r1 = _mm_loadu_si128((__m128i*)A);
-        r2 = _mm_loadu_si128((__m128i*)B);
-        r3 = _mm_loadu_si128((__m128i*)C);
-        r4 = _mm_loadu_si128((__m128i*)D);
-        r5 = _mm_loadu_si128((__m128i*)E);
-        max_px = _mm_max_epu8(_mm_max_epu8(_mm_max_epu8(r1, r2), _mm_max_epu8(r3, r4)), r5);
-        _mm_store_si128((__m128i*)pixels_p + cont, max_px);
-        cont++;
-        indx = 0;
-      } else {
-        indx++;
+  int adjustedWidth = (pgm->width / size_r) * size_r;
+  int dim = (pgm->height) * (adjustedWidth);
+  int its = 10;
+  uint8_t* pixels_s;
+  uint8_t* pixels_p;
+  printf("Numero de iteraciones: %d\n", 10);
+  for(int h = 0; h < its; h++){
+    printf("It[%d]\n", h);
+    pixels_s = (uint8_t*)malloc(dim * sizeof(uint8_t));
+    pixels_p = (uint8_t*)malloc(dim * sizeof(uint8_t));
+    int pos = 0, indy = 0;
+    clock_t start_s = clock();
+    for (int i = 1; i < pgm->height - 1; i++) {
+      for (int j = 1; j < pgm->width - 1; j++) {
+        pixels_s[indy] = MAX(MAX(MAX(pgm->data[i][j + 1], pgm->data[i + 1][j]),MAX(pgm->data[i - 1][j], pgm->data[i][j - 1])),pgm->data[i][j]);
+        indy++;
       }
     }
-  }
-  clock_t end_p = clock();
+    clock_t end_s = clock();
 
-  double t_s = ((double) (end_s - start_s)) / CLOCKS_PER_SEC;
-  double t_p = ((double) (end_p - start_p)) / CLOCKS_PER_SEC;
-  printf("T.Secuencial: %f\nT.Paralelo: %f\n", t_s, t_p);
+    clock_t start_p = clock();
+    for (int i = 1; i < pgm->height - 1; i++) {
+      for (int j = 1; j < adjustedWidth; j += size_r) {
+        char* p1 = pgm->pixs + (pgm->width * (i - 1) + j);
+        char* p2 = pgm->pixs + (pgm->width * i + (j - 1));
+        char* p3 = pgm->pixs + (pgm->width * i + j);
+        char* p4 = pgm->pixs + (pgm->width * i + (j + 1));
+        char* p5 = pgm->pixs + (pgm->width * (i + 1) + j);
+        r1 = _mm_loadu_si128((__m128i*)p1);
+        r2 = _mm_loadu_si128((__m128i*)p2);
+        r3 = _mm_loadu_si128((__m128i*)p3);
+        r4 = _mm_loadu_si128((__m128i*)p4);
+        r5 = _mm_loadu_si128((__m128i*)p5);
+        max_px = _mm_max_epu8(_mm_max_epu8(_mm_max_epu8(r1, r2), _mm_max_epu8(r3, r4)), r5);
+        _mm_store_si128((__m128i*)(pixels_p + pos), max_px);
+        pos += size_r;
+      }
+    }
+    clock_t end_p = clock();
+    double t_s = ((double) (end_s - start_s)) / CLOCKS_PER_SEC;
+    double t_p = ((double) (end_p - start_p)) / CLOCKS_PER_SEC;
+    printf("T.Secuencial: %.50f[s]\nT.Paralelo:   %.50f[s]\n", t_s, t_p);
+  }
+  write_file(secuentialOutputImage, pixels_s, pgm->height - 2, pgm->width - 2, pgm->maxValue);
   write_file(parallelOutputImage, pixels_p, pgm->height, pgm->width, pgm->maxValue);
-  write_file(secuentialOutputImage, pixels_s, pgm->height, pgm->width, pgm->maxValue);
+  free(pixels_s);
+  free(pixels_p);
 }
 
 void write_file(char *archive_name, uint8_t* pixels, int height, int width, int maxValue){
   FILE* pgmimg;
   pgmimg = fopen(archive_name, "wb");
-  int dim = (width - 2) * (height - 2);
-  fprintf(pgmimg, "P5\n%d %d\n%d\n", height - 2, width - 2, maxValue);
+  int dim = (width) * (height);
+  fprintf(pgmimg, "P5\n%d %d\n%d\n", height, width, maxValue);
   size_t elements_written = fwrite(pixels, sizeof(uint8_t), dim, pgmimg);
   if (elements_written == dim) {
     printf("Se escribieron todos los elementos correctamente.\n");

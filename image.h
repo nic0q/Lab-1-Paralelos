@@ -8,6 +8,7 @@
 typedef struct PGMImage {
   char pgmType[3];
   uint8_t** data;
+  uint8_t* pixs;
   unsigned int width;
   unsigned int height;
   unsigned int maxValue;
