@@ -5,7 +5,6 @@
 
 void openPGM(PGMImage* pgm, const char* filename) {
   FILE* pgmfile = fopen(filename, "rb");
-  FILE* pgmfile2 = fopen(filename, "rb");
   if (pgmfile == NULL) {
     printf("File does not exist\n");
     exit(-1);
