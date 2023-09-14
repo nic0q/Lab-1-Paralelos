@@ -1,10 +1,9 @@
-#include <cpuid.h> /* __get_cpuid_max, __get_cpuid */
+#include <cpuid.h>
 #include <ctype.h>
 #include <immintrin.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h> /* exit */
-#include <string.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -14,41 +13,39 @@
 
 void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image);
 void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image);
-double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int gr);
+double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size);
 void write_file(char* name, uint8_t* pixels, int height, int width, int maxValue);
 
 int main(int argc, char* argv[]) {
-  int option, imageWidth = 0, size_mmx = 32, index_parallel = 0, dimension, index_secuential = 0, its = 1;
+  int option, imageWidth = 0, size_mmx = 32, index_parallel = 0, dimension, index_secuential = 0;
   char *inputImage = NULL, *secuentialOutputImage = NULL, *parallelOutputImage = NULL;
   uint8_t* new_image_s;
   uint8_t* new_image_p;
   PGMImage* image = malloc(sizeof(PGMImage));
   while ((option = getopt(argc, argv, "i:s:p:N:")) != -1) {
     switch (option) {
-      case 'i':  // nombre del archivo de entrada
+      case 'i':
         inputImage = optarg;
         break;
-      case 's':  // nombre del archivo de salida
+      case 's': // generated secuential image
         secuentialOutputImage = optarg;
         break;
-      case 'p':  // nombre del archivo de salida
+      case 'p': // generated parallel image
         parallelOutputImage = optarg;
         break;
-      case 'N':  // ancho de la imagen
+      case 'N':
         sscanf(optarg, "%d", &imageWidth);
         break;
       case '?':
         exit(0);
-      default:  // Si no se ha ingresado alguna flag obligatoria, se aborta
+      default:
         abort();
     }
   }
   printf("inputImage: %s\nsecuentialOutputImage: %s\nparallelOutputImage: %s\nimageWidth: %d\n",
   inputImage, secuentialOutputImage, parallelOutputImage, imageWidth);
   openPGM(image, inputImage);
-
   dimension = (image->height) * (image->width);
-  printf("Numero de iteraciones: %d\n", its);
   new_image_s = (uint8_t*)malloc(dimension * sizeof(uint8_t));
   new_image_p = (uint8_t*)malloc(dimension * sizeof(uint8_t));
   dilate_image(image->pixels, image->width, image->height, new_image_s, 1);
@@ -59,25 +56,25 @@ int main(int argc, char* argv[]) {
   free(new_image_p);
 }
 
-double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int gr) {
+double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size) {
   int index = 0;
   clock_t start_s = clock();
   for (int i = 1; i < height - 1; i++) {
     int row = width * i;
-    for (int j = 1; j < width - 1; j = j + gr) {
+    for (int j = 1; j < width - 1; j = j + reg_size) {
       int pixel_pos = row + j;
-      if (gr == 1) {
+      if (reg_size == 1) {
         dilation_secuential_pixel(input_image, width, pixel_pos, index, new_image);
       }
       else{
         dilation_parallel_pixel(input_image, width, pixel_pos, index, new_image);
       }
-      index += gr;
+      index += reg_size;
     }
   }
   clock_t end_s = clock();
   double t_s = ((double)(end_s - start_s)) / CLOCKS_PER_SEC;
-  if (gr == 1) {
+  if (reg_size == 1) {
     printf("T.Secuencial: %.10f[s]\n", t_s);
   }
   else{
@@ -96,7 +93,7 @@ void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position
   char* p1 = input_image + pixel_position - width; // up
   char* p2 = input_image + pixel_position - 1; // left
   char* p3 = input_image + pixel_position; // center
-  char* p4 = input_image + pixel_position + 1; // rigth
+  char* p4 = input_image + pixel_position + 1; // right
   char* p5 = input_image + pixel_position + width; // down
   r1 = _mm256_loadu_si256((__m256i*) p1);
   r2 = _mm256_loadu_si256((__m256i*) p2);

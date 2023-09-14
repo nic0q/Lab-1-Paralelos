@@ -1,9 +1,10 @@
 #FLAGS = -O2# optimize the code
+MMX_FLAGS = -msse4 -mavx2
 
 all: dilation
 
 dilation: dilation.c image.o
-	gcc $(FLAGS) image.o dilation.c -msse4 -mavx2 -o dilation
+	gcc $(FLAGS) $(MMX_FLAGS) image.o dilation.c  -o dilation
 
 image.o: image.c image.h
 	gcc $(FLAGS) -c image.c
