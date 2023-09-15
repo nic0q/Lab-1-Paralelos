@@ -1,4 +1,4 @@
-#include <cpuid.h>
+#include <cpuid.h>writ
 #include <ctype.h>
 #include <immintrin.h>
 #include <stdint.h>
@@ -17,7 +17,7 @@ double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_im
 void write_file(char* name, uint8_t* pixels, int height, int width, int maxValue);
 
 int main(int argc, char* argv[]) {
-  int option, imageWidth = 0, size_mmx = 32, index_parallel = 0, dimension, index_secuential = 0;
+  int option, imageWidth = 0, size_mmx = 32, dimension, index_parallel = 0, index_secuential = 0;
   char *inputImage = NULL, *secuentialOutputImage = NULL, *parallelOutputImage = NULL;
   uint8_t* new_image_s;
   uint8_t* new_image_p;
@@ -75,17 +75,18 @@ double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_im
   clock_t end_s = clock();
   double t_s = ((double)(end_s - start_s)) / CLOCKS_PER_SEC;
   if (reg_size == 1) {
-    printf("T.Secuencial: %.10f[s]\n", t_s);
+    printf("T.Secuencial: %.2f[ms]\n", t_s * 100);
   }
   else{
-    printf("T.Paralelo  : %.10f[s]\n", t_s);
+    printf("T.Paralelo  : %.2f[ms]\n", t_s * 100);
   }
   return t_s;
 }
 
 void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image) {
   new_image[index] = MAX(
-      MAX(MAX(input_image[pixel_position + 1], input_image[pixel_position - 1]), MAX(input_image[pixel_position + width], input_image[pixel_position - width])),input_image[pixel_position]);
+      MAX(MAX(input_image[pixel_position + 1], input_image[pixel_position - 1]),
+      MAX(input_image[pixel_position + width], input_image[pixel_position - width])),input_image[pixel_position]);
 }
 
 void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image) {
