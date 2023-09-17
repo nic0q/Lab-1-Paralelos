@@ -12,7 +12,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image);
-void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image);
+void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, char* pos);
 void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size);
 void write_file(char* name, uint8_t* pixels, int height, int width, int maxValue);
 
@@ -65,20 +65,20 @@ int main(int argc, char* argv[]) {
 void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size) {
   int index = 0;
   clock_t start_s = clock();
-  for (int i = 1; i < height - 1; i++) {
-    int row = width * i;
-    for (int j = 1; j < width - 1; j = j + reg_size) {
-      int pixel_pos = row + j;
-      if (reg_size == 1) {
-        dilation_secuential_pixel(input_image, width, pixel_pos, new_image);
+  #pragma omp parallel for
+    for (int i = 1; i < height - 1; i++) {
+      for (int j = 1; j < width - 1; j = j + reg_size) {
+        int pixel_pos = (width * i) + j;
+        if (reg_size == 1) {
+          dilation_secuential_pixel(input_image, width, pixel_pos, new_image);
+        }
+        else{
+          char* pos = index + new_image;
+          dilation_parallel_pixel(input_image, width, pixel_pos, pos);
+          index += (reg_size);
+          }
       }
-      else{
-        dilation_parallel_pixel(input_image, width, pixel_pos, index, new_image);
-        index += reg_size;
-      }
-      
     }
-  }
   clock_t end_s = clock();
   double t_s = ((double)(end_s - start_s)) / CLOCKS_PER_SEC;
   if (reg_size == 1) {
@@ -95,7 +95,7 @@ void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_positi
       MAX(input_image[pixel_position + width], input_image[pixel_position - width])),input_image[pixel_position]);
 }
 
-void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image) {
+void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, char* pos) {
   __m256i r1, r2, r3, r4, r5, max_px;
   char* p1 = input_image + pixel_position - width; // up
   char* p2 = input_image + pixel_position - 1; // left
@@ -109,7 +109,7 @@ void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position
   r5 = _mm256_loadu_si256((__m256i*) p5);
 
   max_px = _mm256_max_epu8(_mm256_max_epu8(_mm256_max_epu8(r1, r2), _mm256_max_epu8(r3, r4)), r5);
-  _mm256_store_si256((__m256i*)(new_image + index), max_px);
+  _mm256_store_si256((__m256i*)(pos), max_px);
 }
 
 void write_file(char* archive_name, uint8_t* pixels, int height, int width, int maxValue) {
