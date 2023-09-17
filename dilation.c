@@ -1,4 +1,4 @@
-#include <cpuid.h>writ
+#include <cpuid.h>
 #include <ctype.h>
 #include <immintrin.h>
 #include <stdint.h>
@@ -11,13 +11,13 @@
 #include "image.h"
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image);
+void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image);
 void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image);
-double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size);
+void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size);
 void write_file(char* name, uint8_t* pixels, int height, int width, int maxValue);
 
 int main(int argc, char* argv[]) {
-  int option, imageWidth = 0, size_mmx = 32, dimension, index_parallel = 0, index_secuential = 0;
+  int option, imageWidth = 0, size_mmx = 32, dimension;
   char *inputImage = NULL, *secuentialOutputImage = NULL, *parallelOutputImage = NULL;
   uint8_t* new_image_s;
   uint8_t* new_image_p;
@@ -44,19 +44,25 @@ int main(int argc, char* argv[]) {
   }
   printf("inputImage: %s\nsecuentialOutputImage: %s\nparallelOutputImage: %s\nimageWidth: %d\n",
   inputImage, secuentialOutputImage, parallelOutputImage, imageWidth);
+
   openPGM(image, inputImage);
+
   dimension = (image->height) * (image->width);
-  new_image_s = (uint8_t*)malloc(dimension * sizeof(uint8_t));
-  new_image_p = (uint8_t*)malloc(dimension * sizeof(uint8_t));
+
+  new_image_s = malloc(dimension * sizeof(uint8_t)); // Secuential image version
+  new_image_p = malloc(dimension * sizeof(uint8_t)); // Parallel image version
+
   dilate_image(image->pixels, image->width, image->height, new_image_s, 1);
   dilate_image(image->pixels, image->width, image->height, new_image_p, size_mmx);
-  write_file(secuentialOutputImage, new_image_s, image->height - 2, image->width - 2, image->maxValue);
+  
+  write_file(secuentialOutputImage, new_image_s, image->height, image->width, image->maxValue);
   write_file(parallelOutputImage, new_image_p, image->height, image->width, image->maxValue);
+
   free(new_image_s);
   free(new_image_p);
 }
 
-double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size) {
+void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size) {
   int index = 0;
   clock_t start_s = clock();
   for (int i = 1; i < height - 1; i++) {
@@ -64,27 +70,27 @@ double dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_im
     for (int j = 1; j < width - 1; j = j + reg_size) {
       int pixel_pos = row + j;
       if (reg_size == 1) {
-        dilation_secuential_pixel(input_image, width, pixel_pos, index, new_image);
+        dilation_secuential_pixel(input_image, width, pixel_pos, new_image);
       }
       else{
         dilation_parallel_pixel(input_image, width, pixel_pos, index, new_image);
+        index += reg_size;
       }
-      index += reg_size;
+      
     }
   }
   clock_t end_s = clock();
   double t_s = ((double)(end_s - start_s)) / CLOCKS_PER_SEC;
   if (reg_size == 1) {
-    printf("T.Secuencial: %.2f[ms]\n", t_s * 100);
+    printf("T.Secuencial: %.2f[ms]\n", t_s * 100); // s * 100: ms
   }
   else{
-    printf("T.Paralelo  : %.2f[ms]\n", t_s * 100);
+    printf("T.Paralelo  : %.2f[ms]\n", t_s * 100); // s * 100: ms
   }
-  return t_s;
 }
 
-void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, int index, uint8_t* new_image) {
-  new_image[index] = MAX(
+void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image) {
+  new_image[pixel_position] = MAX(
       MAX(MAX(input_image[pixel_position + 1], input_image[pixel_position - 1]),
       MAX(input_image[pixel_position + width], input_image[pixel_position - width])),input_image[pixel_position]);
 }
@@ -101,6 +107,7 @@ void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position
   r3 = _mm256_loadu_si256((__m256i*) p3);
   r4 = _mm256_loadu_si256((__m256i*) p4);
   r5 = _mm256_loadu_si256((__m256i*) p5);
+
   max_px = _mm256_max_epu8(_mm256_max_epu8(_mm256_max_epu8(r1, r2), _mm256_max_epu8(r3, r4)), r5);
   _mm256_store_si256((__m256i*)(new_image + index), max_px);
 }
@@ -109,8 +116,10 @@ void write_file(char* archive_name, uint8_t* pixels, int height, int width, int 
   FILE* pgmimg;
   pgmimg = fopen(archive_name, "wb");
   int dim = (width) * (height);
+
   fprintf(pgmimg, "P5\n%d %d\n%d\n", height, width, maxValue);
   size_t elements_written = fwrite(pixels, sizeof(uint8_t), dim, pgmimg);
+
   if (elements_written == dim) {
     printf("Se escribieron todos los elementos correctamente.\n");
   } else {
