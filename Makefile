@@ -13,7 +13,7 @@ clean:
 	rm -f *.o *.exe imagen_salida1.pgm imagen_salida_secuencial.pgm imagen_salida_paralela.pgm imagen_salida_secuencial2.pgm imagen_salida_paralela2.pgm
 
 test_bike:
-	.\dilation.exe -i bike.pgm -s imagen_salida_secuencial.pgm -p imagen_salida_paralela.pgm -N 3
+	.\dilation.exe -i bike.pgm -s imagen_salida_secuencial.pgm -p imagen_salida_paralela.pgm -N 256
 
 test_lines:
-	.\dilation.exe -i lines.pgm -s imagen_salida_secuencial2.pgm -p imagen_salida_paralela2.pgm -N 3
+	.\dilation.exe -i lines.pgm -s imagen_salida_secuencial2.pgm -p imagen_salida_paralela2.pgm -N 256
