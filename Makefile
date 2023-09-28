@@ -1,4 +1,4 @@
-FLAGS = -Ofast# optimize the code
+FLAGS = -Ofast # optimize the code
 MMX_FLAGS = -msse4 -mavx2
 
 all: dilation

@@ -1,12 +1,9 @@
-#include <cpuid.h>
-#include <ctype.h>
-#include <immintrin.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <unistd.h>
+#include <stdint.h> // uint8_8: unsigned char
+#include <time.h> // clock
+#include <immintrin.h> // mmx256
+#include <unistd.h> // getopt
 
 #include "image.h"
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -27,10 +24,10 @@ int main(int argc, char* argv[]) {
       case 'i':
         inputImage = optarg;
         break;
-      case 's': // generated secuential image
+      case 's':
         secuentialOutputImage = optarg;
         break;
-      case 'p': // generated parallel image
+      case 'p':
         parallelOutputImage = optarg;
         break;
       case '?':
@@ -44,11 +41,11 @@ int main(int argc, char* argv[]) {
 
   openPGM(image, inputImage);
 
-  dimension = (image->height) * (image->width);
+  dimension = image->height * image->width;
 
   new_image_s = malloc(dimension * sizeof(uint8_t)); // Secuential image version
   new_image_p = malloc(dimension * sizeof(uint8_t)); // Parallel image version
-
+  
   dilate_image(image->pixels, image->width, image->height, new_image_s, 1);
   dilate_image(image->pixels, image->width, image->height, new_image_p, size_mmx);
   
@@ -59,67 +56,111 @@ int main(int argc, char* argv[]) {
   free(new_image_p);
 }
 
+/**
+ * Applies a dilation operation to an image.
+ *
+ * @param input_image   Pointer to the input image.
+ * @param width         The width of the image.
+ * @param height        The height of the image.
+ * @param new_image     Pointer to the output image where the dilation result will be stored.
+ * @param reg_size      Neighborhood region size for dilation.
+ *                     If reg_size is 1, sequential dilation is performed.
+ *                     Otherwise, parallel dilation is performed with the specified region size.
+ */
 void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size) {
   int puntero = 0;
   clock_t start_s = clock();
+
   for (int i = 1; i < height - 1; i++) {
+    int row = width * i;
     for (int j = 1; j < width - 1; j = j + reg_size) {
-      int pixel_pos = (width * i) + j;
+      int pixel_pos = row + j;
       if (reg_size == 1) {
         dilation_secuential_pixel(input_image, width, pixel_pos, new_image);
-      }
-      else{
+      } else {
         char* pos = new_image + puntero;
         dilation_parallel_pixel(input_image, width, pixel_pos, pos);
         puntero += reg_size;
       }
     }
   }
+
   clock_t end_s = clock();
   double t_s = ((double)(end_s - start_s)) / CLOCKS_PER_SEC;
+
   if (reg_size == 1) {
-    printf("T.Secuencial: %.2f[ms]\n", t_s * 100); // s * 100: ms
-  }
-  else{
-    printf("T.Paralelo  : %.2f[ms]\n", t_s * 100); // s * 100: ms
+    printf("Sequential Time: %.2f[ms]\n", t_s * 100);
+  } else {
+    printf("Parallel Time: %.2f[ms]\n", t_s * 100);
   }
 }
 
+/**
+ * Applies a sequential dilation operation to a pixel in an image.
+ *
+ * @param input_image      Pointer to the input image.
+ * @param width            The width of the image.
+ * @param pixel_position   The position of the current pixel in the image.
+ * @param new_image        Pointer to the output image where the dilation result will be stored.
+ */
 void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image) {
-  new_image[pixel_position] = MAX(
+  uint8_t max_value = MAX(
       MAX(MAX(input_image[pixel_position + 1], input_image[pixel_position - 1]),
-      MAX(input_image[pixel_position + width], input_image[pixel_position - width])),input_image[pixel_position]);
-  
+      MAX(input_image[pixel_position + width], input_image[pixel_position - width])), input_image[pixel_position]);
+  new_image[pixel_position-1] = max_value;
 }
 
+/**
+ * Applies a parallel dilation operation to a pixel in an image using SIMD (AVX2) instructions.
+ *
+ * @param input_image      Pointer to the input image.
+ * @param width            The width of the image.
+ * @param pixel_position   The position of the current pixel in the image.
+ * @param pos              Pointer to the location in the output image where the dilation result will be stored.
+ */
 void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, char* pos) {
   __m256i r1, r2, r3, r4, r5, max_px;
-  char* p1 = input_image + pixel_position - width; // up
-  char* p2 = input_image + pixel_position - 1; // left
-  char* p3 = input_image + pixel_position; // center
-  char* p4 = input_image + pixel_position + 1; // right
-  char* p5 = input_image + pixel_position + width; // down
+
+  char* p1 = input_image + pixel_position - width; // Up
+  char* p2 = input_image + pixel_position - 1; // Left
+  char* p3 = input_image + pixel_position; // Center
+  char* p4 = input_image + pixel_position + 1; // Right
+  char* p5 = input_image + pixel_position + width; // Down
+
   r1 = _mm256_loadu_si256((__m256i*) p1);
   r2 = _mm256_loadu_si256((__m256i*) p2);
   r3 = _mm256_loadu_si256((__m256i*) p3);
   r4 = _mm256_loadu_si256((__m256i*) p4);
   r5 = _mm256_loadu_si256((__m256i*) p5);
+
   max_px = _mm256_max_epu8(_mm256_max_epu8(_mm256_max_epu8(r1, r2), _mm256_max_epu8(r3, r4)), r5);
-  _mm256_storeu_si256((__m256i*)pos, max_px);
+
+  _mm256_storeu_si256((__m256i*) pos, max_px);
 }
 
+/**
+ * Writes an image in PGM (Portable Graymap) format to a binary file.
+ *
+ * @param archive_name   The name of the file where the image will be written.
+ * @param pixels         Pointer to the image's pixels.
+ * @param height         The height of the image.
+ * @param width          The width of the image.
+ * @param maxValue       The maximum pixel value in the image.
+ */
 void write_file(char* archive_name, uint8_t* pixels, int height, int width, int maxValue) {
   FILE* pgmimg;
   pgmimg = fopen(archive_name, "wb");
   int dim = width * height;
 
-  fprintf(pgmimg, "P5\n%d %d\n%d\n", height, width, maxValue);
+  fprintf(pgmimg, "P5\n%d %d\n%d\n", width, height, maxValue);
+
   size_t elements_written = fwrite(pixels, sizeof(uint8_t), dim, pgmimg);
 
   if (elements_written == dim) {
-    printf("Se escribieron todos los elementos correctamente.\n");
+    printf("All elements were written successfully.\n");
   } else {
-    printf("Hubo un error al escribir los elementos.\n");
+    printf("There was an error while writing the elements.\n");
   }
+
   fclose(pgmimg);
 }
