@@ -4,17 +4,19 @@
 #include <time.h> // clock
 #include <immintrin.h> // mmx256
 #include <unistd.h> // getopt
+#include <getopt.h>
 
 #include "image.h"
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image);
+void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image, int puntero);
 void dilation_parallel_pixel(uint8_t* input_image, int width, int pixel_position, char* pos);
 void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_image, int reg_size);
 void write_file(char* name, uint8_t* pixels, int height, int width, int maxValue);
+void cut_2_rightpx(uint8_t* img, int width, int height, int n_pixels);
 
 int main(int argc, char* argv[]) {
-  int option, size_mmx = 32, dimension;
+  int option, size_mmx = 32, dimension, adjusted_height, adjusted_width;
   char *inputImage = NULL, *secuentialOutputImage = NULL, *parallelOutputImage = NULL;
   uint8_t* new_image_s;
   uint8_t* new_image_p;
@@ -41,6 +43,9 @@ int main(int argc, char* argv[]) {
 
   openPGM(image, inputImage);
 
+  adjusted_width = image->height - 2;
+  adjusted_height = image->width - 2;
+
   dimension = image->height * image->width;
 
   new_image_s = malloc(dimension * sizeof(uint8_t)); // Secuential image version
@@ -49,8 +54,11 @@ int main(int argc, char* argv[]) {
   dilate_image(image->pixels, image->width, image->height, new_image_s, 1);
   dilate_image(image->pixels, image->width, image->height, new_image_p, size_mmx);
   
-  write_file(secuentialOutputImage, new_image_s, image->height, image->width, image->maxValue);
-  write_file(parallelOutputImage, new_image_p, image->height, image->width, image->maxValue);
+  // cut two right pixels side to make secuential and parallel equal images
+  cut_2_rightpx(new_image_p, image->width, image->height, 2);
+
+  write_file(secuentialOutputImage, new_image_s, adjusted_height, adjusted_width, image->maxValue);
+  write_file(parallelOutputImage, new_image_p, adjusted_height, adjusted_width, image->maxValue);
 
   free(new_image_s);
   free(new_image_p);
@@ -76,12 +84,12 @@ void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_imag
     for (int j = 1; j < width - 1; j = j + reg_size) {
       int pixel_pos = row + j;
       if (reg_size == 1) {
-        dilation_secuential_pixel(input_image, width, pixel_pos, new_image);
+        dilation_secuential_pixel(input_image, width, pixel_pos, new_image, puntero);
       } else {
         char* pos = new_image + puntero;
         dilation_parallel_pixel(input_image, width, pixel_pos, pos);
-        puntero += reg_size;
       }
+      puntero += reg_size;
     }
   }
 
@@ -103,11 +111,11 @@ void dilate_image(uint8_t* input_image, int width, int height, uint8_t* new_imag
  * @param pixel_position   The position of the current pixel in the image.
  * @param new_image        Pointer to the output image where the dilation result will be stored.
  */
-void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image) {
+void dilation_secuential_pixel(uint8_t* input_image, int width, int pixel_position, uint8_t* new_image, int puntero) {
   uint8_t max_value = MAX(
       MAX(MAX(input_image[pixel_position + 1], input_image[pixel_position - 1]),
       MAX(input_image[pixel_position + width], input_image[pixel_position - width])), input_image[pixel_position]);
-  new_image[pixel_position-1] = max_value;
+  new_image[puntero] = max_value;
 }
 
 /**
@@ -163,4 +171,21 @@ void write_file(char* archive_name, uint8_t* pixels, int height, int width, int 
   }
 
   fclose(pgmimg);
+}
+
+/**
+ * Writes an image in PGM (Portable Graymap) format to a binary file.
+ *
+ * @param img            Pointer to the image's pixels.
+ * @param width          The width of the image.
+ * @param height         The height of the image.
+ * @param n_pixels       Number of pixels to cut from rigth
+ */
+void cut_2_rightpx(uint8_t* img, int width, int height, int n_pixels) {
+  int new_width = width - n_pixels;
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < new_width; j++) {
+      img[i * new_width + j] = img[i * height + j];
+    }
+  }
 }
