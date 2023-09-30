@@ -32,7 +32,12 @@ Donde:
 
 		$ make test_bike
 		$ make test_lines
-		
+
+ #### Se puede probar que el resultado es el mismo haciendo
+
+		$ diff imagen_salida_paralela.pgm imagen_salida_secuencial.pgm
+  
+Y si no arroja nada las imágenes son idénticas, es decir que se obtiene el mismo resultado.
 
 #### Links relevantes
 
