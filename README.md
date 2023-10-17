@@ -2,6 +2,13 @@
 #### Contexto
 (Para entender el problema lea el enunciado *lab1.pdf*)
 
+#### Resultados
+### Image
+![image](https://github.com/nic0q/SSE-MMX-registers-c/assets/91075814/cae2ee05-3b5a-407f-b164-a713e6b6ab46)
+
+### Dilation
+![image](https://github.com/nic0q/SSE-MMX-registers-c/assets/91075814/54d7f676-51bf-4467-853c-056f54d40e16)
+
 #### Estrategia de paralelización
 Utilicé las funciones intrínsecas de intel para registros mmx de **256bits** tales como: **_mm256_store_si256**, **_mm256_max_epu8**, **_mm256_loadu_si256**.
 Nota: No fue posible implementar esta solución con registros de 512bits dado que mi pc no soporta la familia AVX-512.
