@@ -2,20 +2,22 @@
 #### Contexto
 (Para entender el problema lea el enunciado *lab1.pdf*)
 
-#### Resultados
+## Resultados / Objetivo
 ### Image
 ![image](https://github.com/nic0q/SSE-MMX-registers-c/assets/91075814/cae2ee05-3b5a-407f-b164-a713e6b6ab46)
 
 ### Dilation
 ![image](https://github.com/nic0q/SSE-MMX-registers-c/assets/91075814/54d7f676-51bf-4467-853c-056f54d40e16)
 
-#### Estrategia de paralelización
+Tambien existe la imagen lines.pgm está disponible en el repo para ser dilatada.
+
+## Estrategia de paralelización
 Utilicé las funciones intrínsecas de intel para registros mmx de **256bits** tales como: **_mm256_store_si256**, **_mm256_max_epu8**, **_mm256_loadu_si256**.
 Nota: No fue posible implementar esta solución con registros de 512bits dado que mi pc no soporta la familia AVX-512.
 
 Dado que las funciones de **store** y **load** reciben un puntero a una dirección de memoria es posible simplemente sumar un (contador o puntero) para seguir almacenando en la posición deseada, dado que estamos almacenando la imagen en un arreglo unidimensional para que esta estrategia funcione, la posición del pixel está dada por **Arreglo[Width * i + j]**
 
-#### Especificaciones
+## Especificaciones
 Programa creado en Windows 10, con compilador gcc versión: **12.1.0**
 
 ------------
@@ -46,10 +48,10 @@ Donde:
   
 Y si no arroja nada las imágenes son idénticas, es decir que se obtiene el mismo resultado.
 
-#### Links relevantes
+## Links relevantes
 
-##### Para ver la imagen utilicé
+#### Para ver la imagen utilicé
 https://bytes.usc.edu/~saty/tools/PGMViewer/viewer.html
 
-##### Documentación de Intel Intrinsics
+#### Documentación de Intel Intrinsics
 https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#ig_expand=28,11,4327,4141&techs=MMX,SSE_ALL,AVX_ALL&text=_mm256
